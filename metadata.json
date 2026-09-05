@@ -1,0 +1,8 @@
+{
+  "name": "Enterprise Risk Control Self Assessment (RCSA)",
+  "description": "Enterprise Risk Control Self Assessment (RCSA) platform for financial services supporting risk identification, inherent risk, controls, residual risk, treatment, action plans, monitoring, and reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

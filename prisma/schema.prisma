@@ -1,0 +1,337 @@
+// Prisma Schema for Enterprise Risk Control Self Assessment (RCSA)
+// Designed for Financial Services Institutions (PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  ADMIN
+  RISK_MANAGEMENT
+  RISK_OWNER
+  MANAGEMENT
+  AUDITOR
+}
+
+enum RiskRating {
+  LOW
+  MODERATE
+  HIGH
+  EXTREME
+}
+
+enum RiskResponse {
+  ACCEPT
+  REDUCE
+  TRANSFER
+  AVOID
+}
+
+enum RiskStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  REVISION_REQUIRED
+  APPROVED
+  MONITORING
+  CLOSED
+}
+
+enum ControlType {
+  PREVENTIVE
+  DETECTIVE
+  CORRECTIVE
+}
+
+enum ControlFrequency {
+  CONTINUOUS
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum EffectivenessLevel {
+  EFFECTIVE
+  PARTIALLY_EFFECTIVE
+  INEFFECTIVE
+}
+
+enum ActionPlanPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ActionPlanStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+enum NotificationType {
+  RISK_CREATED
+  RISK_HIGH_ALERT
+  ACTION_PLAN_H7
+  ACTION_PLAN_H3
+  ACTION_PLAN_H1
+  ACTION_PLAN_DUE
+  ACTION_PLAN_OVERDUE
+  ESCALATION_7D
+  ESCALATION_14D
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  SUBMIT
+  APPROVE
+  REJECT
+  REVISE
+  CLOSE
+  STATUS_CHANGE
+  EMAIL_SENT
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        RoleName @unique
+  description String?
+  users       User[]
+
+  @@map("roles")
+}
+
+model Unit {
+  id             Int      @id @default(autoincrement())
+  code           String   @unique
+  name           String
+  parent_unit_id Int?
+  parent_unit    Unit?    @relation("UnitHierarchy", fields: [parent_unit_id], references: [id])
+  child_units    Unit[]   @relation("UnitHierarchy")
+  is_active      Boolean  @default(true)
+  users          User[]
+  risks          Risk[]
+
+  @@map("units")
+}
+
+model RiskCategory {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  is_active   Boolean  @default(true)
+  risks       Risk[]
+
+  @@map("risk_categories")
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  uuid          String   @unique @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  role_id       Int
+  role          Role     @relation(fields: [role_id], references: [id])
+  unit_id       Int?
+  unit          Unit?    @relation(fields: [unit_id], references: [id])
+  manager_id    Int?
+  manager       User?    @relation("UserManager", fields: [manager_id], references: [id])
+  subordinates  User[]   @relation("UserManager")
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  owned_risks         Risk[]              @relation("RiskOwner")
+  created_risks       Risk[]              @relation("RiskCreator")
+  controls            Control[]
+  action_plans        ActionPlan[]        @relation("ActionPlanPIC")
+  notifications       Notification[]
+  audit_logs          AuditLog[]
+  approval_histories  ApprovalHistory[]
+
+  @@map("users")
+}
+
+model Risk {
+  id                      Int          @id @default(autoincrement())
+  risk_id                 String       @unique // e.g. RSK-2026-00001
+  unit_id                 Int
+  unit                    Unit         @relation(fields: [unit_id], references: [id])
+  risk_owner_id           Int
+  risk_owner              User         @relation("RiskOwner", fields: [risk_owner_id], references: [id])
+  risk_category_id        Int
+  risk_category           RiskCategory @relation(fields: [risk_category_id], references: [id])
+  business_process        String
+  sub_process             String
+  risk_event              String
+  risk_description        String
+  risk_cause              String
+  risk_impact_description String
+
+  // Inherent Risk
+  inherent_likelihood     Int          // 1-5
+  inherent_impact         Int          // 1-5
+  inherent_score          Int          // 1-25
+  inherent_rating         RiskRating
+
+  // Residual Risk
+  residual_likelihood     Int          // 1-5
+  residual_impact         Int          // 1-5
+  residual_score          Int          // 1-25
+  residual_rating         RiskRating
+  residual_justification  String?
+
+  risk_response           RiskResponse
+  risk_response_justification String?
+  status                  RiskStatus   @default(DRAFT)
+
+  created_by              Int
+  creator                 User         @relation("RiskCreator", fields: [created_by], references: [id])
+  created_at              DateTime     @default(now())
+  updated_at              DateTime     @updatedAt
+
+  controls                Control[]
+  action_plans            ActionPlan[]
+  approval_histories      ApprovalHistory[]
+  notifications           Notification[]
+
+  @@index([unit_id])
+  @@index([risk_category_id])
+  @@index([status])
+  @@index([inherent_rating])
+  @@index([residual_rating])
+  @@map("risks")
+}
+
+model Control {
+  id                              Int                @id @default(autoincrement())
+  risk_id                         Int
+  risk                            Risk               @relation(fields: [risk_id], references: [id], onDelete: Cascade)
+  control_id                      String             // e.g. CTL-001
+  control_name                    String
+  control_description             String
+  control_objective               String
+  control_type                    ControlType
+  control_frequency               ControlFrequency
+  control_owner_id                Int
+  control_owner                   User               @relation(fields: [control_owner_id], references: [id])
+  control_effectiveness           EffectivenessLevel
+  control_design_effectiveness    EffectivenessLevel
+  control_operating_effectiveness EffectivenessLevel
+  evidence                        String?
+  created_at                      DateTime           @default(now())
+  updated_at                      DateTime           @updatedAt
+
+  @@index([risk_id])
+  @@map("controls")
+}
+
+model ActionPlan {
+  id              Int                @id @default(autoincrement())
+  risk_id         Int
+  risk            Risk               @relation(fields: [risk_id], references: [id], onDelete: Cascade)
+  action_plan     String
+  pic_id          Int
+  pic             User               @relation("ActionPlanPIC", fields: [pic_id], references: [id])
+  priority        ActionPlanPriority
+  target_date     DateTime
+  progress        Int                @default(0) // 0-100
+  status          ActionPlanStatus   @default(NOT_STARTED)
+  completion_date DateTime?
+  evidence        String?
+  remarks         String?
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+  notifications   Notification[]
+
+  @@index([risk_id])
+  @@index([status])
+  @@index([target_date])
+  @@map("action_plans")
+}
+
+model Notification {
+  id                Int                @id @default(autoincrement())
+  risk_id           Int?
+  risk              Risk?              @relation(fields: [risk_id], references: [id], onDelete: Cascade)
+  action_plan_id    Int?
+  action_plan       ActionPlan?        @relation(fields: [action_plan_id], references: [id], onDelete: Cascade)
+  recipient_id      Int
+  recipient         User               @relation(fields: [recipient_id], references: [id])
+  recipient_email   String
+  notification_type NotificationType
+  subject           String
+  body              String?
+  sent_at           DateTime?
+  status            NotificationStatus @default(PENDING)
+  error_message     String?
+  notification_date DateTime           @default(now())
+  created_at        DateTime           @default(now())
+
+  @@unique([risk_id, action_plan_id, notification_type, notification_date], name: "idempotency_idx")
+  @@index([status])
+  @@index([recipient_id])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         Int         @id @default(autoincrement())
+  user_id    Int?
+  user       User?       @relation(fields: [user_id], references: [id])
+  entity     String      // e.g. "Risk", "Control", "ActionPlan", "System"
+  entity_id  String      // ID or Code
+  action     AuditAction
+  field_name String?
+  old_value  String?
+  new_value  String?
+  ip_address String?
+  user_agent String?
+  created_at DateTime    @default(now())
+
+  @@index([entity, entity_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@map("audit_logs")
+}
+
+model ApprovalHistory {
+  id         Int      @id @default(autoincrement())
+  risk_id    Int
+  risk       Risk     @relation(fields: [risk_id], references: [id], onDelete: Cascade)
+  user_id    Int
+  user       User     @relation(fields: [user_id], references: [id])
+  action     String   // SUBMIT, APPROVE, REVISE, REJECT, CLOSE
+  comments   String?
+  created_at DateTime @default(now())
+
+  @@index([risk_id])
+  @@map("approval_histories")
+}
+
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  description String?
+  updated_at  DateTime @updatedAt
+
+  @@map("system_settings")
+}

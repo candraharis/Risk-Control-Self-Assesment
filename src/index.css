@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Newsreader", Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-editorial-bg: #F4F4F2;
+  --color-editorial-ink: #1A1A1A;
+  --color-editorial-accent: #FF6321;
+  --color-editorial-accent-hover: #E5591D;
+  --color-editorial-border: #D1D1CB;
+  --color-editorial-border-light: #E6E6E1;
+  --color-editorial-muted: #888883;
+}
+
+body {
+  background-color: #F4F4F2;
+  color: #1A1A1A;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Crisp editorial scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #E6E6E1;
+}
+::-webkit-scrollbar-thumb {
+  background: #B8B8B2;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #888883;
+}
